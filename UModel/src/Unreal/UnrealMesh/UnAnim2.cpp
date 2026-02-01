@@ -3,6 +3,8 @@
 #include "UnObject.h"
 #include "UnMesh2.h"
 #include "UnMeshTypes.h"
+#include "UnAnimNotify.h"
+#include "UnrealPackage/UnPackage.h"
 
 #include "Mesh/SkeletalMesh.h"
 #include "TypeConvert.h"
@@ -69,6 +71,170 @@ void UMeshAnimation::ConvertAnims()
                     for (int k = 0; k < T->KeyTime.Num(); k++)
                         T->KeyTime[k] *= TimeScale;
                 }
+            }
+
+            // S.Notifys - convert animation notifies
+            // Note: ConvertAnims() is called from PostLoad() to ensure notify objects are already serialized
+            S.Notifys.Empty(Src.Notifys.Num());
+            for (j = 0; j < Src.Notifys.Num(); j++)
+            {
+                const FMeshAnimNotify& SrcNotify = Src.Notifys[j];
+                CAnimNotify N;
+                N.Time = SrcNotify.Time;
+                N.Function = *SrcNotify.Function;
+
+                // Determine notify type from the notify object
+                if (SrcNotify.NotifyObj)
+                {
+                    #if LINEAGE2
+                    // Handle L2 specific notify types first
+                    // Combat notifies (not sounds)
+                    if (SrcNotify.NotifyObj->IsA("AnimNotify_AttackShot"))
+                    {
+                        N.Type = EAnimNotifyType::AttackShot;
+                        N.Function = "AttackShot";
+                    }
+                    else if (SrcNotify.NotifyObj->IsA("AnimNotify_AttackItem"))
+                    {
+                        N.Type = EAnimNotifyType::AttackItem;
+                        N.Function = "AttackItem";
+                    }
+                    else if (SrcNotify.NotifyObj->IsA("AnimNotify_Illusion"))
+                    {
+                        N.Type = EAnimNotifyType::Illusion;
+                        N.Function = "Illusion";
+                    }
+                    // Voice notifies (inherit from AnimNotify_Sound but no specific sound)
+                    else if (SrcNotify.NotifyObj->IsA("AnimNotify_AttackVoice"))
+                    {
+                        N.Type = EAnimNotifyType::AttackVoice;
+                        N.Function = "AttackVoice";
+                        UAnimNotify_AttackVoice* VoiceNotify = static_cast<UAnimNotify_AttackVoice*>(SrcNotify.NotifyObj);
+                        // AttackVoice may have Sound property set
+                        if (VoiceNotify->Sound)
+                        {
+                            N.SoundName = VoiceNotify->Sound->Name;
+                        }
+                        else if (VoiceNotify->SoundImportName.Len() > 0)
+                        {
+                            N.SoundName = VoiceNotify->SoundImportName;
+                        }
+                        N.Volume = VoiceNotify->Volume;
+                    }
+                    else if (SrcNotify.NotifyObj->IsA("AnimNotify_PawnStatusVoice"))
+                    {
+                        N.Type = EAnimNotifyType::Sound;
+                        UAnimNotify_PawnStatusVoice* VoiceNotify = static_cast<UAnimNotify_PawnStatusVoice*>(SrcNotify.NotifyObj);
+                        // Store VoiceType separately
+                        if (VoiceNotify->VoiceType != "None")
+                        {
+                            N.VoiceType = *VoiceNotify->VoiceType;
+                            N.Function = *VoiceNotify->VoiceType;
+                        }
+                        // Use inherited Sound property
+                        if (VoiceNotify->Sound)
+                        {
+                            N.SoundName = VoiceNotify->Sound->Name;
+                        }
+                        else if (VoiceNotify->SoundImportName.Len() > 0)
+                        {
+                            N.SoundName = VoiceNotify->SoundImportName;
+                        }
+                        N.Volume = VoiceNotify->Volume;
+                    }
+                    else
+                    #endif
+                    if (SrcNotify.NotifyObj->IsA("AnimNotify_Sound"))
+                    {
+                        N.Type = EAnimNotifyType::Sound;
+                        UAnimNotify_Sound* SoundNotify = static_cast<UAnimNotify_Sound*>(SrcNotify.NotifyObj);
+                        if (SoundNotify->Sound)
+                        {
+                            N.SoundName = SoundNotify->Sound->Name;
+                        }
+                        else if (SoundNotify->SoundImportName.Len() > 0)
+                        {
+                            // Sound object is NULL (external package not loaded), use cached import name
+                            N.SoundName = SoundNotify->SoundImportName;
+                        }
+                        N.Volume = SoundNotify->Volume;
+                        #if LINEAGE2
+                        // Extract L2 footstep sound arrays
+                        N.SoundRandom = SoundNotify->Random;
+                        for (int si = 0; si < 3; si++)
+                        {
+                            if (SoundNotify->DefaultWalkSound[si])
+                                N.DefaultWalkSound[si] = SoundNotify->DefaultWalkSound[si]->Name;
+                            if (SoundNotify->DefaultRunSound[si])
+                                N.DefaultRunSound[si] = SoundNotify->DefaultRunSound[si]->Name;
+                            if (SoundNotify->GrassWalkSound[si])
+                                N.GrassWalkSound[si] = SoundNotify->GrassWalkSound[si]->Name;
+                            if (SoundNotify->GrassRunSound[si])
+                                N.GrassRunSound[si] = SoundNotify->GrassRunSound[si]->Name;
+                            if (SoundNotify->WaterWalkSound[si])
+                                N.WaterWalkSound[si] = SoundNotify->WaterWalkSound[si]->Name;
+                            if (SoundNotify->WaterRunSound[si])
+                                N.WaterRunSound[si] = SoundNotify->WaterRunSound[si]->Name;
+                            if (SoundNotify->DefaultActorWalkSound[si])
+                                N.DefaultActorWalkSound[si] = SoundNotify->DefaultActorWalkSound[si]->Name;
+                            if (SoundNotify->DefaultActorRunSound[si])
+                                N.DefaultActorRunSound[si] = SoundNotify->DefaultActorRunSound[si]->Name;
+                        }
+                        #endif
+                    }
+                    else if (SrcNotify.NotifyObj->IsA("AnimNotify_Effect"))
+                    {
+                        N.Type = EAnimNotifyType::Effect;
+                        UAnimNotify_Effect* EffectNotify = static_cast<UAnimNotify_Effect*>(SrcNotify.NotifyObj);
+                        if (EffectNotify->EffectClass)
+                        {
+                            N.EffectClassName = EffectNotify->EffectClass->Name;
+                        }
+                        N.BoneName = *EffectNotify->Bone;
+                        N.OffsetLocation = EffectNotify->OffsetLocation;
+                        N.OffsetRotation = EffectNotify->OffsetRotation;
+                        N.DrawScale = EffectNotify->DrawScale;
+                        N.DrawScale3D = EffectNotify->DrawScale3D;
+                        N.bAttach = EffectNotify->Attach;
+                        N.EffectTag = *EffectNotify->Tag;
+                        #if LINEAGE2
+                        // Extract L2-specific effect fields
+                        N.bTrailCamera = EffectNotify->TrailCamera;
+                        N.bIndependentRotation = EffectNotify->IndependentRotation;
+                        N.EffectScale = EffectNotify->EffectScale;
+                        #endif
+                    }
+                    else if (SrcNotify.NotifyObj->IsA("AnimNotify_DestroyEffect"))
+                    {
+                        N.Type = EAnimNotifyType::DestroyEffect;
+                        UAnimNotify_DestroyEffect* DestroyNotify = static_cast<UAnimNotify_DestroyEffect*>(SrcNotify.NotifyObj);
+                        N.EffectTag = *DestroyNotify->DestroyTag;
+                        N.bExpireParticles = DestroyNotify->bExpireParticles;
+                    }
+                    else if (SrcNotify.NotifyObj->IsA("AnimNotify_Trigger"))
+                    {
+                        N.Type = EAnimNotifyType::Trigger;
+                        UAnimNotify_Trigger* TriggerNotify = static_cast<UAnimNotify_Trigger*>(SrcNotify.NotifyObj);
+                        N.Function = *TriggerNotify->EventName;
+                    }
+                    else if (SrcNotify.NotifyObj->IsA("AnimNotify_Script"))
+                    {
+                        N.Type = EAnimNotifyType::Script;
+                        UAnimNotify_Script* ScriptNotify = static_cast<UAnimNotify_Script*>(SrcNotify.NotifyObj);
+                        N.Function = *ScriptNotify->NotifyName;
+                    }
+                    else
+                    {
+                        N.Type = EAnimNotifyType::Unknown;
+                    }
+                }
+                else if (SrcNotify.Function != "None")
+                {
+                    // No notify object, but has function name - treat as script notify
+                    N.Type = EAnimNotifyType::Script;
+                }
+
+                S.Notifys.Add(N);
             }
         }
 

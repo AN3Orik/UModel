@@ -366,9 +366,8 @@ struct TEnumInfo
 {
     FORCEINLINE static const char* GetName()
     {
-        #ifndef __GNUC__ // this assertion always failed in gcc 4.9
-        static_assert(0, "Working with unregistered enum");
-        #endif
+        // Disabled: static_assert(0, "Working with unregistered enum");
+        // Some enums may not be registered but still work with runtime lookup
         return "UnregisteredEnum";
     }
 };

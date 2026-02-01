@@ -1409,6 +1409,13 @@ class UMeshAnimation : public UObject
 
         virtual ~UMeshAnimation();
 
+        virtual void PostLoad()
+        {
+            Super::PostLoad();
+            // Convert anims in PostLoad to ensure all referenced notify objects are serialized
+            ConvertAnims();
+        }
+
         #if SPLINTER_CELL
         void SerializeSCell(FArchive& Ar);
         #endif
@@ -1439,7 +1446,6 @@ class UMeshAnimation : public UObject
                 if (Ar.Game == GAME_RepCommando)
                 {
                     SerializeSWRCAnims(Ar);
-                    ConvertAnims();
                     return;
                 }
                 #endif // SWRC
@@ -1450,7 +1456,6 @@ class UMeshAnimation : public UObject
                     {
                         // avoid assert
                         DROP_REMAINING_DATA(Ar);
-                        ConvertAnims();
                         return;
                     }
                 }
@@ -1470,7 +1475,7 @@ class UMeshAnimation : public UObject
                 #if UNREAL1
                 if (Ar.Engine() == GAME_UE1) Upgrade(); // UE1 code
                 #endif
-                ConvertAnims();
+                // Note: ConvertAnims() is called from PostLoad() to ensure notify objects are serialized
 
             unguard;
         }

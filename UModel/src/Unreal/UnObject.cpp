@@ -3,6 +3,7 @@
 #include "UE4Version.h"
 #include "UnObject.h"
 #include "UnrealPackage/UnPackage.h"
+#include "UnrealMesh/UnAnimNotify.h"
 
 #include "GameDatabase.h"		// for GetGameTag()
 
@@ -1169,6 +1170,17 @@ void CTypeInfo::ReadUnrealProperty(FArchive& Ar, FPropertyTag& Tag, void* Object
                 CHECK_TYPE(PropType::UObject);
                 Ar << PROP(UObject*);
                 PROP_DBG("%s", PROP(UObject*) ? PROP(UObject*)->Name : "Null");
+                // Special handling for AnimNotify_Sound.Sound - capture import name
+                if (!PROP(UObject*) && GLastSerializedImportName && strcmp(*Tag.Name, "Sound") == 0)
+                {
+                    // Check if this object is AnimNotify_Sound or derived
+                    UObject* ObjPtr = static_cast<UObject*>(ObjectData);
+                    if (ObjPtr && ObjPtr->IsA("AnimNotify_Sound"))
+                    {
+                        UAnimNotify_Sound* SoundNotify = static_cast<UAnimNotify_Sound*>(ObjPtr);
+                        SoundNotify->SoundImportName = GLastSerializedImportName;
+                    }
+                }
                 break;
 
             case NAME_NameProperty:
