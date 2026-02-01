@@ -1,0 +1,43 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'release_*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-2022
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Extract libs
+        run: 7z x UModel/libs/libs.7z -oUModel/libs -aoa
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Build solution
+        run: msbuild UModel.sln /p:Configuration=Release /p:Platform=x64
+
+      - name: Create release archive
+        run: Compress-Archive -Path Build/UModel.exe -DestinationPath Build/UModel.zip
+
+      - name: Get version from tag
+        id: version
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $version = $tag -replace 'release_', 'v'
+          echo "VERSION=$version" >> $env:GITHUB_OUTPUT
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Release ${{ steps.version.outputs.VERSION }}
+          files: Build/UModel.zip
+          generate_release_notes: true
