@@ -497,7 +497,8 @@ const char* GetExportPath(const UObject* Obj)
         }
         else
         {
-            strcpy(group, Obj->GetClassName());
+            // Don't create subdirectories by class name - export directly to package folder
+            group[0] = 0;
         }
 
         appSprintf(ARRAY_ARG(buf), "%s/%s%s%s", BaseExportDir, PackageName,

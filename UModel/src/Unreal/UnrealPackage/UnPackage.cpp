@@ -816,6 +816,11 @@ FArchive& UnPackage::operator<<(FName& N)
     unguardf("pos=%08X", Tell());
 }
 
+// Global variables to capture last serialized object import name
+// Used by UAnimNotify_Sound to get sound name when package is not available
+int GLastSerializedObjectIndex = 0;
+const char* GLastSerializedImportName = nullptr;
+
 FArchive& UnPackage::operator<<(UObject*& Obj)
 {
     guard(UnPackage::SerializeUObject)
@@ -835,9 +840,15 @@ FArchive& UnPackage::operator<<(UObject*& Obj)
             #endif // UNREAL3 || UNREAL4
                 *this << AR_INDEX(index);
 
+        // Store index for external access (used by UAnimNotify_Sound)
+        GLastSerializedObjectIndex = index;
+        GLastSerializedImportName = nullptr;
+
         if (index < 0)
         {
-            //		const FObjectImport &Imp = GetImport(-index-1);
+            // Store import name before CreateImport (which may return NULL)
+            const FObjectImport& Imp = GetImport(-index - 1);
+            GLastSerializedImportName = *Imp.ObjectName;
             //		appPrintf("PKG: Import[%s,%d] OBJ=%s CLS=%s\n", GetObjectName(Imp.PackageIndex), index, *Imp.ObjectName, *Imp.ClassName);
             Obj = CreateImport(-index - 1);
         }

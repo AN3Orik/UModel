@@ -42,6 +42,7 @@ BIND_LAMBDA will copy lambda instead of doing more efficient move. Newer compile
 
 #include <stdlib.h> // malloc/free
 #include <memory.h> // memcpy
+#include <type_traits> // std::is_void_v
 
 #ifndef FORCEINLINE
 #if _MSC_VER
@@ -580,12 +581,22 @@ namespace Detail
         typedef Ret VoidCallerType(void*, ParamTypes...);
 
         template <Ret (*Function)(ParamTypes...)>
-        FORCEINLINE static CallerType* Caller()
+        static Ret CallHelper(void*, ParamTypes... Params)
         {
-            return [](void*, ParamTypes... Params) -> Ret
+            if constexpr (std::is_void_v<Ret>)
+            {
+                Function(Params...);
+            }
+            else
             {
                 return Function(Params...);
-            };
+            }
+        }
+
+        template <Ret (*Function)(ParamTypes...)>
+        FORCEINLINE static CallerType* Caller()
+        {
+            return &CallHelper<Function>;
         }
 
         template <Ret (*Function)(ParamTypes...)>

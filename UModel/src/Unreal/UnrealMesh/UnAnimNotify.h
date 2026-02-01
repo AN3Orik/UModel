@@ -1,6 +1,10 @@
 #ifndef __UNANIM_NOTIFY_H__
 #define __UNANIM_NOTIFY_H__
 
+// Global variables for capturing import names when sound package is unavailable
+extern int GLastSerializedObjectIndex;
+extern const char* GLastSerializedImportName;
+
 
 /*-----------------------------------------------------------------------------
 	UAnimNotify objects
@@ -106,8 +110,13 @@ class UAnimNotify_Sound : public UAnimNotify
 
     public:
         UObject* Sound; // USound*
+        FString SoundImportName; // Stored sound name from import (for when package not available)
         float Volume;
+        #if LINEAGE2
+        float Radius;  // float in Lineage 2
+        #else
         int Radius;
+        #endif
         #if LINEAGE2
         int Random;
         UObject* DefaultWalkSound[3];
@@ -123,15 +132,20 @@ class UAnimNotify_Sound : public UAnimNotify
         UAnimNotify_Sound()
             : Radius(0)
             , Volume(1.0f)
+            , Sound(NULL)
         {
         }
 
         BEGIN_PROP_TABLE
             PROP_OBJ(Sound)
             PROP_FLOAT(Volume)
-            PROP_INT(Radius)
             #if LINEAGE2
+            PROP_DROP(Radius)  // Type varies between int/float in L2 data
             PROP_INT(Random)
+            #else
+            PROP_INT(Radius)
+            #endif
+            #if LINEAGE2
             PROP_OBJ(DefaultWalkSound)
             PROP_OBJ(DefaultRunSound)
             PROP_OBJ(GrassWalkSound)
@@ -184,6 +198,45 @@ class UAnimNotify_Trigger : public UAnimNotify_Scripted
 };
 
 
+#if LINEAGE2
+
+// Lineage 2 specific notify classes
+class UAnimNotify_AttackVoice : public UAnimNotify_Sound
+{
+        DECLARE_CLASS(UAnimNotify_AttackVoice, UAnimNotify_Sound);
+};
+
+class UAnimNotify_PawnStatusVoice : public UAnimNotify_Sound
+{
+        DECLARE_CLASS(UAnimNotify_PawnStatusVoice, UAnimNotify_Sound);
+
+    public:
+        FName VoiceType;
+
+        BEGIN_PROP_TABLE
+            PROP_NAME(VoiceType)
+            PROP_DROP(SoundName)  // Complex structure, use inherited Sound property instead
+        END_PROP_TABLE
+};
+
+class UAnimNotify_AttackShot : public UAnimNotify
+{
+        DECLARE_CLASS(UAnimNotify_AttackShot, UAnimNotify);
+};
+
+class UAnimNotify_AttackItem : public UAnimNotify
+{
+        DECLARE_CLASS(UAnimNotify_AttackItem, UAnimNotify);
+};
+
+class UAnimNotify_Illusion : public UAnimNotify
+{
+        DECLARE_CLASS(UAnimNotify_Illusion, UAnimNotify);
+};
+
+#endif // LINEAGE2
+
+
 #define REGISTER_ANIM_NOTIFY_CLASSES			\
 	REGISTER_CLASS(UAnimNotify)					\
 	REGISTER_CLASS(UAnimNotify_Script)			\
@@ -192,6 +245,17 @@ class UAnimNotify_Trigger : public UAnimNotify_Scripted
 	REGISTER_CLASS(UAnimNotify_Sound)			\
 	REGISTER_CLASS(UAnimNotify_Scripted)		\
 	REGISTER_CLASS(UAnimNotify_Trigger)
+
+#if LINEAGE2
+#define REGISTER_LINEAGE2_ANIM_NOTIFY_CLASSES	\
+	REGISTER_CLASS(UAnimNotify_AttackVoice)		\
+	REGISTER_CLASS(UAnimNotify_PawnStatusVoice)	\
+	REGISTER_CLASS(UAnimNotify_AttackShot)		\
+	REGISTER_CLASS(UAnimNotify_AttackItem)		\
+	REGISTER_CLASS(UAnimNotify_Illusion)
+#else
+#define REGISTER_LINEAGE2_ANIM_NOTIFY_CLASSES
+#endif
 
 
 #endif // __UNANIM_NOTIFY_H__
